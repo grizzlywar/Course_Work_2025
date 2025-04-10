@@ -10,11 +10,9 @@ from app.inference import TritonRecognitionClient, crop_rotate_obb
 
 app = FastAPI(title="FastAPI wrapper для Triton", version="1.0")
 
-# Определяем базовую директорию проекта
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 frontend_dir = os.path.join(BASE_DIR, "frontend")
 
-# Монтируем статику из папки frontend
 app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
 
 
@@ -55,7 +53,6 @@ def axis_aligned_bbox_crop(orig_img, bbox: np.ndarray, pad_ratio=0.01, swap_xy=F
     return orig_img[y1:y2, x1:x2]
 
 
-# Параметры моделей
 TRITON_SERVER_URL = "localhost:8000"
 RECOGNITION_MODEL = "my_model"
 RECOGNITION_INPUT = "x"
@@ -94,13 +91,13 @@ async def infer_image_endpoint(file: UploadFile = File(...)):
         detect_result = preds[0]
 
         if detect_result.obb is not None:
-            # Пытаемся обрезать OBB
+
             try:
                 cropped_img = crop_rotate_obb(detect_result)
                 print("Обрезка по OBB выполнена.")
             except Exception as e:
                 print("Ошибка при OBB:", e)
-                # fallback на axis-aligned
+
                 if detect_result.boxes.xyxy.shape[0] > 0:
                     bbox = detect_result.boxes.xyxy[0].cpu().numpy()
                     if (bbox[2] - bbox[0]) < (bbox[3] - bbox[1]):
@@ -111,7 +108,7 @@ async def infer_image_endpoint(file: UploadFile = File(...)):
                 else:
                     raise ValueError("Нет данных для axis-aligned bbox.")
         else:
-            # Если нет OBB, берём axis-aligned bbox
+
             if detect_result.boxes.xyxy.shape[0] > 0:
                 bbox = detect_result.boxes.xyxy[0].cpu().numpy()
                 if (bbox[2] - bbox[0]) < (bbox[3] - bbox[1]):
@@ -125,7 +122,6 @@ async def infer_image_endpoint(file: UploadFile = File(...)):
         if cropped_img.size == 0:
             raise ValueError("Обрезанная область пуста.")
 
-        # Приводим к (32, 400)
         layer = torch.nn.AdaptiveAvgPool2d((32, 400))
         t_img = torch.tensor(cropped_img.transpose((2, 0, 1))).unsqueeze(0).float() / 255.
         t_resized = layer(t_img)
@@ -133,17 +129,15 @@ async def infer_image_endpoint(file: UploadFile = File(...)):
 
         rec_result = recognition_client.run_inference(input_for_rec)
 
-        # rec_result — массив [(text, conf), (text2, conf2), ...]
         final_result = []
         for text, conf in rec_result:
-            # Удаляем ведущие нули
+
             cleaned_text = text.lstrip('0')
             if cleaned_text == "":
                 cleaned_text = "0"
-            # Возвращаем в том же виде [cleaned_text, conf], чтобы JS мог отобразить item[0]
+
             final_result.append([cleaned_text, conf])
 
-        # Если final_result пуст, сообщаем "Нет распознанных данных"
         if not final_result:
             final_result = [["Нет распознанных данных", 0.0]]
 

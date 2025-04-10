@@ -21,11 +21,9 @@ document.getElementById('uploadBtn').addEventListener('click', async () => {
 
         const data = await response.json();
 
-        // Предполагаем, что data.result = [ [ text, conf ], [ text2, conf2 ], ... ]
         let output = '';
         if (data.result && Array.isArray(data.result)) {
             data.result.forEach(item => {
-                // item[0] — распознанный текст, item[1] — уверенность
                 if (Array.isArray(item) && item.length >= 1) {
                     output += item[0] + '\n';
                 }
